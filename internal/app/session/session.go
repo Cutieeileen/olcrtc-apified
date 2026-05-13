@@ -28,6 +28,7 @@ const (
 	modeSRV               = "srv"
 	modeCNC               = "cnc"
 	modeGen               = "gen"
+	modeAPI               = "api"
 	carrierJazz           = "jazz"
 	carrierTelemost       = "telemost"
 	carrierWBStream       = "wbstream"
@@ -177,7 +178,7 @@ func Validate(cfg Config) error {
 
 func validateMode(cfg Config) error {
 	switch cfg.Mode {
-	case modeSRV, modeCNC, modeGen:
+	case modeSRV, modeCNC, modeGen, modeAPI:
 		return nil
 	default:
 		return ErrModeRequired

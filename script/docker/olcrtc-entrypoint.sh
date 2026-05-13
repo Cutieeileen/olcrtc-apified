@@ -30,6 +30,18 @@ if [ "$#" -gt 0 ]; then
 fi
 
 mode="${OLCRTC_MODE:-srv}"
+
+# API mode: minimal config, skip carrier/transport/room/key validation.
+if [ "$mode" = "api" ]; then
+    data_dir="${OLCRTC_DATA_DIR:-/usr/share/olcrtc}"
+    dns_server="${OLCRTC_DNS:-1.1.1.1:53}"
+    set -- /usr/local/bin/olcrtc -mode api -data "$data_dir" -dns "$dns_server"
+    if bool_flag "${OLCRTC_DEBUG:-}"; then
+        set -- "$@" -debug
+    fi
+    exec "$@"
+fi
+
 room_id="${OLCRTC_ROOM_ID:-}"
 carrier="${OLCRTC_CARRIER:-}"
 transport="${OLCRTC_TRANSPORT:-}"

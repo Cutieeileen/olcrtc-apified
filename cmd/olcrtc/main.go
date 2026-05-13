@@ -7,21 +7,29 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
 	protoLogger "github.com/livekit/protocol/logger"
 	lksdk "github.com/livekit/server-sdk-go/v2"
+	"github.com/openlibrecommunity/olcrtc/internal/api"
 	"github.com/openlibrecommunity/olcrtc/internal/app/session"
+	"github.com/openlibrecommunity/olcrtc/internal/channel"
 	"github.com/openlibrecommunity/olcrtc/internal/logger"
 	"github.com/openlibrecommunity/olcrtc/internal/names"
+	"github.com/openlibrecommunity/olcrtc/internal/store"
 	"github.com/openlibrecommunity/olcrtc/internal/transport/videochannel"
 )
 
-const modeGen = "gen"
+const (
+	modeGen = "gen"
+	modeAPI = "api"
+)
 
 // ErrDataDirRequired is returned when no data directory is specified.
 var ErrDataDirRequired = errors.New("data directory required (use -data data)")
@@ -99,6 +107,10 @@ func runWithConfig(cfg config) error {
 
 	if cfg.mode == modeGen {
 		return runGen(cfg)
+	}
+
+	if cfg.mode == modeAPI {
+		return runAPI(cfg)
 	}
 
 	if err := session.Validate(toSessionConfig(cfg)); err != nil {
@@ -283,6 +295,102 @@ func toSessionConfig(cfg config) session.Config {
 		SEIFragmentSize: cfg.seiFragmentSize,
 		SEIAckTimeoutMS: cfg.seiAckTimeoutMS,
 		Amount:          cfg.amount,
+	}
+}
+
+// ErrMasterKeyRequired is returned when OLCRTC_MASTER_KEY is not set.
+var ErrMasterKeyRequired = errors.New("OLCRTC_MASTER_KEY environment variable required for API mode")
+
+func runAPI(cfg config) error {
+	session.RegisterDefaults()
+
+	masterKey := os.Getenv("OLCRTC_MASTER_KEY")
+	if masterKey == "" {
+		return ErrMasterKeyRequired
+	}
+
+	maxChannels := 10
+	if v := os.Getenv("OLCRTC_MAX_CHANNELS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			maxChannels = n
+		}
+	}
+
+	dbPath := os.Getenv("OLCRTC_DB_PATH")
+	if dbPath == "" {
+		dataDir := cfg.dataDir
+		if dataDir == "" {
+			dataDir = "data"
+		}
+		resolved, err := resolveDataDir(dataDir)
+		if err != nil {
+			return err
+		}
+		dbPath = filepath.Join(resolved, "channels.db")
+	}
+
+	listenAddr := os.Getenv("OLCRTC_API_LISTEN")
+	if listenAddr == "" {
+		listenAddr = ":8080"
+	}
+
+	dnsServer := cfg.dnsServer
+	if dnsServer == "" {
+		dnsServer = "1.1.1.1:53"
+	}
+
+	// Load names for room creation.
+	if cfg.dataDir != "" {
+		dataDir, err := resolveDataDir(cfg.dataDir)
+		if err == nil {
+			_ = loadNames(dataDir)
+		}
+	}
+
+	st, err := store.NewSQLiteStore(dbPath)
+	if err != nil {
+		return fmt.Errorf("open store: %w", err)
+	}
+	defer st.Close()
+
+	mgr := channel.NewManager(st, maxChannels, dnsServer)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := mgr.RestoreAll(ctx); err != nil {
+		return fmt.Errorf("restore channels: %w", err)
+	}
+
+	go mgr.StartExpirationWorker(ctx, channel.DefaultExpiryCheckInterval)
+
+	srv := api.NewServer(mgr, masterKey, listenAddr)
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+	errCh := make(chan error, 1)
+	go func() {
+		logger.Infof("API server listening on %s (max channels: %d)", listenAddr, maxChannels)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case <-sigCh:
+		logger.Info("Shutting down API server...")
+		cancel()
+		mgr.StopAll()
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+		_ = srv.Shutdown(shutdownCtx)
+		logger.Info("API server shutdown complete")
+		return nil
+	case err := <-errCh:
+		cancel()
+		mgr.StopAll()
+		return err
 	}
 }
 
