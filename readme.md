@@ -18,7 +18,7 @@ Multi-tenant форк [olcRTC](https://github.com/openlibrecommunity/olcrtc) с 
 
 - **Многоканальное управление** — один сервер обслуживает множество туннелей одновременно через REST API
 - **Автогенерация ключей** — уникальный 256-битный ключ шифрования на каждый канал (ChaCha20-Poly1305)
-- **Автоматическое создание комнат** — комнаты для Jazz и WBStream создаются автоматически
+- **Автоматическое создание комнат** — комнаты для Jazz создаются автоматически
 - **Срок действия каналов** — настраиваемый TTL с автоматической очисткой просроченных каналов
 - **Персистентное хранилище** — база данных SQLite, каналы переживают перезапуски
 - **Авторизация по Bearer-токену** — единый мастер-ключ защищает все API-эндпоинты
@@ -39,6 +39,8 @@ Multi-tenant форк [olcRTC](https://github.com/openlibrecommunity/olcrtc) с 
 | `GET` | `/api/v1/status` | Статус сервера |
 
 Все эндпоинты требуют заголовок `Authorization: Bearer <OLCRTC_MASTER_KEY>`.
+
+Подробная документация: **[API.md](API.md)** — все параметры для каждой комбинации carrier/transport.
 
 ## Быстрый старт (Docker)
 
@@ -82,7 +84,21 @@ curl -s -H "Authorization: Bearer ваш-секретный-ключ" \
 
 ## Примеры использования API
 
-### Создание канала
+### Создание канала (jazz — комната генерируется автоматически)
+
+```bash
+curl -X POST http://localhost:8080/api/v1/channels \
+  -H "Authorization: Bearer $OLCRTC_MASTER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "carrier": "jazz",
+    "transport": "datachannel",
+    "client_id": "user-1",
+    "ttl_days": 30
+  }'
+```
+
+### Создание канала (wbstream — room_id обязателен)
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/channels \
@@ -92,6 +108,7 @@ curl -X POST http://localhost:8080/api/v1/channels \
     "carrier": "wbstream",
     "transport": "datachannel",
     "client_id": "user-1",
+    "room_id": "existing-room-id",
     "ttl_days": 30
   }'
 ```

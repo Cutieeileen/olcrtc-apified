@@ -167,7 +167,14 @@ func errorStatus(err error) int {
 		errors.Is(err, channel.ErrTransportRequired),
 		errors.Is(err, channel.ErrClientIDRequired),
 		errors.Is(err, channel.ErrRoomIDRequired),
-		errors.Is(err, channel.ErrTTLDaysRequired):
+		errors.Is(err, channel.ErrTTLDaysRequired),
+		errors.Is(err, channel.ErrUnsupportedCarrier),
+		errors.Is(err, channel.ErrUnsupportedTransport),
+		errors.Is(err, channel.ErrVideoWidthRequired),
+		errors.Is(err, channel.ErrVideoHeightRequired),
+		errors.Is(err, channel.ErrVideoFPSRequired),
+		errors.Is(err, channel.ErrVideoBitrateRequired),
+		errors.Is(err, channel.ErrVideoHWRequired):
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError

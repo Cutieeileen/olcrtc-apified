@@ -10,9 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/openlibrecommunity/olcrtc/internal/logger"
-	"github.com/openlibrecommunity/olcrtc/internal/names"
 	"github.com/openlibrecommunity/olcrtc/internal/provider/jazz"
-	"github.com/openlibrecommunity/olcrtc/internal/provider/wbstream"
 	"github.com/openlibrecommunity/olcrtc/internal/server"
 )
 
@@ -20,6 +18,11 @@ const (
 	carrierJazz     = "jazz"
 	carrierWBStream = "wbstream"
 	carrierTelemost = "telemost"
+
+	transportDatachannel  = "datachannel"
+	transportVideochannel = "videochannel"
+	transportVP8channel   = "vp8channel"
+	transportSEIchannel   = "seichannel"
 
 	telemostRoomURLPrefix = "https://telemost.yandex.ru/j/"
 
@@ -38,9 +41,23 @@ var (
 	// ErrClientIDRequired is returned when no client ID is specified.
 	ErrClientIDRequired = errors.New("client_id required")
 	// ErrRoomIDRequired is returned when room ID is required but missing.
-	ErrRoomIDRequired = errors.New("room_id required for telemost")
+	ErrRoomIDRequired = errors.New("room_id required for this carrier")
 	// ErrTTLDaysRequired is returned when ttl_days is missing or zero in renew request.
 	ErrTTLDaysRequired = errors.New("ttl_days required and must be positive")
+	// ErrUnsupportedCarrier is returned when the carrier is not recognized.
+	ErrUnsupportedCarrier = errors.New("unsupported carrier")
+	// ErrUnsupportedTransport is returned when the transport is not recognized.
+	ErrUnsupportedTransport = errors.New("unsupported transport")
+	// ErrVideoWidthRequired is returned when video_width is missing for videochannel.
+	ErrVideoWidthRequired = errors.New("transport_config.video_width required for videochannel")
+	// ErrVideoHeightRequired is returned when video_height is missing for videochannel.
+	ErrVideoHeightRequired = errors.New("transport_config.video_height required for videochannel")
+	// ErrVideoFPSRequired is returned when video_fps is missing for videochannel.
+	ErrVideoFPSRequired = errors.New("transport_config.video_fps required for videochannel")
+	// ErrVideoBitrateRequired is returned when video_bitrate is missing for videochannel.
+	ErrVideoBitrateRequired = errors.New("transport_config.video_bitrate required for videochannel")
+	// ErrVideoHWRequired is returned when video_hw is missing for videochannel.
+	ErrVideoHWRequired = errors.New("transport_config.video_hw required for videochannel")
 )
 
 // RunServerFunc is the function signature for starting a tunnel.
@@ -149,6 +166,8 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (*Channel, erro
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
+
+	ch.TransportConfig.ApplyDefaults(ch.Transport)
 
 	if err := m.store.Create(ctx, ch); err != nil {
 		return nil, fmt.Errorf("persist channel: %w", err)
@@ -396,37 +415,94 @@ func (m *Manager) updateStatus(id string, status Status, msg string) {
 	_ = m.store.Update(ctx, ch)
 }
 
-func (m *Manager) generateRoomID(ctx context.Context, carrier string) (string, error) {
-	switch carrier {
-	case carrierJazz:
+func (m *Manager) generateRoomID(ctx context.Context, carrierName string) (string, error) {
+	if carrierName == carrierJazz {
 		info, err := jazz.CreateRoom(ctx)
 		if err != nil {
 			return "", fmt.Errorf("jazz.CreateRoom: %w", err)
 		}
 		return info.RoomID, nil
-	case carrierWBStream:
-		roomID, err := wbstream.CreateRoom(ctx, names.Generate())
-		if err != nil {
-			return "", fmt.Errorf("wbstream.CreateRoom: %w", err)
-		}
-		return roomID, nil
-	default:
-		return "", fmt.Errorf("carrier %s does not support room generation", carrier) //nolint:err113
 	}
+	return "", fmt.Errorf("%w: %s does not support room generation", ErrUnsupportedCarrier, carrierName)
 }
 
 func validateCreateRequest(req CreateRequest) error {
 	if req.Carrier == "" {
 		return ErrCarrierRequired
 	}
+	if err := validateCarrier(req.Carrier); err != nil {
+		return err
+	}
 	if req.Transport == "" {
 		return ErrTransportRequired
+	}
+	if err := validateTransport(req.Transport); err != nil {
+		return err
 	}
 	if req.ClientID == "" {
 		return ErrClientIDRequired
 	}
-	if req.Carrier == carrierTelemost && req.RoomID == "" {
+	if err := validateRoomID(req.Carrier, req.RoomID); err != nil {
+		return err
+	}
+	return validateTransportConfig(req.Transport, req.TransportConfig)
+}
+
+func validateCarrier(c string) error {
+	switch c {
+	case carrierJazz, carrierWBStream, carrierTelemost:
+		return nil
+	default:
+		return fmt.Errorf("%w: %s (available: jazz, wbstream, telemost)", ErrUnsupportedCarrier, c)
+	}
+}
+
+func validateTransport(t string) error {
+	switch t {
+	case transportDatachannel, transportVideochannel, transportVP8channel, transportSEIchannel:
+		return nil
+	default:
+		return fmt.Errorf(
+			"%w: %s (available: datachannel, videochannel, vp8channel, seichannel)",
+			ErrUnsupportedTransport, t,
+		)
+	}
+}
+
+// validateRoomID checks whether room_id is required for the given carrier.
+// Jazz can auto-generate rooms; wbstream and telemost require an explicit room_id.
+func validateRoomID(carrierName, roomID string) error {
+	if carrierName != carrierJazz && roomID == "" {
 		return ErrRoomIDRequired
+	}
+	return nil
+}
+
+func validateTransportConfig(t string, tc TransportConfig) error {
+	switch t {
+	case transportVideochannel:
+		return validateVideochannelConfig(tc)
+	default:
+		// datachannel, vp8channel, seichannel — all optional (have built-in defaults).
+		return nil
+	}
+}
+
+func validateVideochannelConfig(tc TransportConfig) error {
+	if tc.VideoWidth == 0 {
+		return ErrVideoWidthRequired
+	}
+	if tc.VideoHeight == 0 {
+		return ErrVideoHeightRequired
+	}
+	if tc.VideoFPS == 0 {
+		return ErrVideoFPSRequired
+	}
+	if tc.VideoBitrate == "" {
+		return ErrVideoBitrateRequired
+	}
+	if tc.VideoHW == "" {
+		return ErrVideoHWRequired
 	}
 	return nil
 }

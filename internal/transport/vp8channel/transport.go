@@ -53,6 +53,8 @@ const (
 	inboundQueueSize      = 1024
 	canSendHighWatermark  = 90 // percent
 	keepaliveIdlePeriod   = 100 * time.Millisecond
+	defaultVP8FPS         = 25
+	defaultVP8BatchSize   = 1
 )
 
 var (
@@ -148,7 +150,14 @@ func New(ctx context.Context, cfg transport.Config) (transport.Transport, error)
 	}
 
 	fps := cfg.VP8FPS
+	if fps <= 0 {
+		fps = defaultVP8FPS
+	}
+
 	batchSize := cfg.VP8BatchSize
+	if batchSize <= 0 {
+		batchSize = defaultVP8BatchSize
+	}
 
 	tr := &streamTransport{
 		stream:        stream,

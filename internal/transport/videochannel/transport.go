@@ -121,6 +121,11 @@ func New(ctx context.Context, cfg transport.Config) (transport.Transport, error)
 		tileRS = 20
 	}
 
+	videoFPS := cfg.VideoFPS
+	if videoFPS <= 0 {
+		videoFPS = int(time.Second / defaultFrameInterval) // 25
+	}
+
 	tr := &streamTransport{
 		stream:          stream,
 		track:           track,
@@ -135,7 +140,7 @@ func New(ctx context.Context, cfg transport.Config) (transport.Transport, error)
 		delivered:       make(map[uint32]uint32),
 		videoW:          cfg.VideoWidth,
 		videoH:          cfg.VideoHeight,
-		videoFPS:        cfg.VideoFPS,
+		videoFPS:        videoFPS,
 		videoBitrate:    cfg.VideoBitrate,
 		videoHW:         cfg.VideoHW,
 		videoQRSize:     qrSize,

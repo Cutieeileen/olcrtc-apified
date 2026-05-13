@@ -128,6 +128,48 @@ type RenewRequest struct {
 	TTLDays int `json:"ttl_days"`
 }
 
+// ApplyDefaults fills zero-valued transport config fields with sensible defaults.
+func (tc *TransportConfig) ApplyDefaults(transport string) {
+	switch transport {
+	case "vp8channel":
+		if tc.VP8FPS <= 0 {
+			tc.VP8FPS = 25
+		}
+		if tc.VP8BatchSize <= 0 {
+			tc.VP8BatchSize = 1
+		}
+	case "seichannel":
+		if tc.SEIFPS <= 0 {
+			tc.SEIFPS = 20
+		}
+		if tc.SEIBatchSize <= 0 {
+			tc.SEIBatchSize = 1
+		}
+		if tc.SEIFragmentSize <= 0 {
+			tc.SEIFragmentSize = 900
+		}
+		if tc.SEIAckTimeoutMS <= 0 {
+			tc.SEIAckTimeoutMS = 3000
+		}
+	case "videochannel":
+		if tc.VideoQRSize <= 0 {
+			tc.VideoQRSize = 256
+		}
+		if tc.VideoTileModule <= 0 {
+			tc.VideoTileModule = 4
+		}
+		if tc.VideoTileRS <= 0 {
+			tc.VideoTileRS = 20
+		}
+		if tc.VideoCodec == "" {
+			tc.VideoCodec = "qrcode"
+		}
+		if tc.VideoQRRecovery == "" {
+			tc.VideoQRRecovery = "low"
+		}
+	}
+}
+
 // GenerateKeyHex generates a random 32-byte encryption key and returns it as a 64-char hex string.
 func GenerateKeyHex() (string, error) {
 	key := make([]byte, keyBytes)

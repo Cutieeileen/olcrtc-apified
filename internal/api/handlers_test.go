@@ -295,10 +295,18 @@ func TestCreateValidation(t *testing.T) {
 		name string
 		req  channel.CreateRequest
 	}{
-		{"no carrier", channel.CreateRequest{Transport: "datachannel", ClientID: "c"}},
-		{"no transport", channel.CreateRequest{Carrier: "wbstream", ClientID: "c"}},
-		{"no client_id", channel.CreateRequest{Carrier: "wbstream", Transport: "datachannel"}},
+		{"no carrier", channel.CreateRequest{Transport: "datachannel", ClientID: "c", RoomID: "r"}},
+		{"unsupported carrier", channel.CreateRequest{Carrier: "unknown", Transport: "datachannel", ClientID: "c"}},
+		{"no transport", channel.CreateRequest{Carrier: "wbstream", ClientID: "c", RoomID: "r"}},
+		{"unsupported transport", channel.CreateRequest{
+			Carrier: "wbstream", Transport: "unknown", ClientID: "c", RoomID: "r",
+		}},
+		{"no client_id", channel.CreateRequest{Carrier: "wbstream", Transport: "datachannel", RoomID: "r"}},
 		{"telemost no room", channel.CreateRequest{Carrier: "telemost", Transport: "datachannel", ClientID: "c"}},
+		{"wbstream no room", channel.CreateRequest{Carrier: "wbstream", Transport: "datachannel", ClientID: "c"}},
+		{"videochannel missing config", channel.CreateRequest{
+			Carrier: "wbstream", Transport: "videochannel", ClientID: "c", RoomID: "r",
+		}},
 	}
 
 	for _, tt := range tests {
