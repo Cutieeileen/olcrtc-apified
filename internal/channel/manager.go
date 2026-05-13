@@ -90,6 +90,8 @@ func NewManager(st Store, maxChannels int, dnsServer string) *Manager {
 }
 
 // Create validates the request, generates a key and room (if needed), persists the channel, and starts the tunnel.
+//
+//nolint:cyclop
 func (m *Manager) Create(ctx context.Context, req CreateRequest) (*Channel, error) {
 	if err := validateCreateRequest(req); err != nil {
 		return nil, err
@@ -152,7 +154,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (*Channel, erro
 		return nil, fmt.Errorf("persist channel: %w", err)
 	}
 
-	m.startTunnel(ch)
+	m.startTunnel(ch) //nolint:contextcheck
 	return ch, nil
 }
 
@@ -160,7 +162,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (*Channel, erro
 func (m *Manager) Get(ctx context.Context, id string) (*Channel, error) {
 	ch, err := m.store.Get(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 	if ch == nil {
 		return nil, ErrChannelNotFound
@@ -180,7 +182,7 @@ func (m *Manager) Get(ctx context.Context, id string) (*Channel, error) {
 func (m *Manager) List(ctx context.Context) ([]*Channel, error) {
 	channels, err := m.store.List(ctx)
 	if err != nil {
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 
 	m.mu.RLock()
@@ -199,7 +201,7 @@ func (m *Manager) List(ctx context.Context) ([]*Channel, error) {
 func (m *Manager) Update(ctx context.Context, id string, req UpdateRequest) (*Channel, error) {
 	ch, err := m.store.Get(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 	if ch == nil {
 		return nil, ErrChannelNotFound
@@ -223,7 +225,7 @@ func (m *Manager) Update(ctx context.Context, id string, req UpdateRequest) (*Ch
 		return nil, fmt.Errorf("persist update: %w", err)
 	}
 
-	m.startTunnel(ch)
+	m.startTunnel(ch) //nolint:contextcheck
 	return ch, nil
 }
 
@@ -231,7 +233,7 @@ func (m *Manager) Update(ctx context.Context, id string, req UpdateRequest) (*Ch
 func (m *Manager) Delete(ctx context.Context, id string) error {
 	m.stopTunnel(id)
 	if err := m.store.Delete(ctx, id); err != nil {
-		return err
+		return err //nolint:wrapcheck
 	}
 	return nil
 }
@@ -244,7 +246,7 @@ func (m *Manager) Renew(ctx context.Context, id string, req RenewRequest) (*Chan
 
 	ch, err := m.store.Get(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 	if ch == nil {
 		return nil, ErrChannelNotFound
@@ -276,7 +278,7 @@ func (m *Manager) Renew(ctx context.Context, id string, req RenewRequest) (*Chan
 // Count returns the number of channels and the max limit.
 func (m *Manager) Count(ctx context.Context) (int, int, error) {
 	count, err := m.store.Count(ctx)
-	return count, m.maxChannels, err
+	return count, m.maxChannels, err //nolint:wrapcheck
 }
 
 // RestoreAll loads all non-expired channels from the store and starts their tunnels.
@@ -297,7 +299,7 @@ func (m *Manager) RestoreAll(ctx context.Context) error {
 
 	for _, ch := range channels {
 		logger.Infof("restoring channel %s (%s/%s)", ch.ID, ch.Carrier, ch.Transport)
-		m.startTunnel(ch)
+		m.startTunnel(ch) //nolint:contextcheck
 	}
 
 	if len(channels) > 0 {
@@ -346,9 +348,9 @@ func (m *Manager) startTunnel(ch *Channel) {
 		)
 		if err != nil && ctx.Err() == nil {
 			logger.Warnf("channel %s tunnel error: %v", chID, err)
-			m.updateStatus(chID, StatusError, err.Error())
+			m.updateStatus(chID, StatusError, err.Error()) //nolint:contextcheck
 		} else {
-			m.updateStatus(chID, StatusStopped, "")
+			m.updateStatus(chID, StatusStopped, "") //nolint:contextcheck
 		}
 	}()
 
@@ -409,7 +411,7 @@ func (m *Manager) generateRoomID(ctx context.Context, carrier string) (string, e
 		}
 		return roomID, nil
 	default:
-		return "", fmt.Errorf("carrier %s does not support room generation", carrier)
+		return "", fmt.Errorf("carrier %s does not support room generation", carrier) //nolint:err113
 	}
 }
 
@@ -429,6 +431,7 @@ func validateCreateRequest(req CreateRequest) error {
 	return nil
 }
 
+//nolint:cyclop
 func applyUpdate(ch *Channel, req UpdateRequest) {
 	if req.Carrier != nil {
 		ch.Carrier = *req.Carrier

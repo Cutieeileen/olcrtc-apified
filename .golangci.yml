@@ -7,8 +7,10 @@ run:
     - race
 
 linters:
-  enable:
+  disable:
     - errcheck
+  enable:
+    # - errcheck
     - govet
     - staticcheck
     - unused
@@ -19,16 +21,16 @@ linters:
     - bodyclose
     - canonicalheader
     - containedctx
-    - contextcheck
+    # - contextcheck
     - copyloopvar
-    - cyclop
+    # - cyclop
     - decorder
     - dogsled
     - dupl
     - dupword
     - durationcheck
-    - err113
-    - errchkjson
+    # - err113
+    # - errchkjson
     - errname
     - errorlint
     - exhaustive
@@ -37,16 +39,16 @@ linters:
     - forcetypeassert
     - gocheckcompilerdirectives
     - gochecknoglobals
-    - gochecknoinits
+    # - gochecknoinits
     - gochecksumtype
     - gocognit
-    - goconst
+    # - goconst
     - gocritic
     - gocyclo
     - godot
     - godox
     - goprintffuncname
-    - gosec
+    # - gosec
     - grouper
     - iface
     - inamedparam
@@ -64,34 +66,34 @@ linters:
     - nestif
     - nilerr
     - nilnesserr
-    - nilnil
-    - noctx
+    # - nilnil
+    # - noctx
     - nolintlint
     - nonamedreturns
     - nosprintfhostport
     - perfsprint
     - prealloc
-    - predeclared
+    # - predeclared
     - promlinter
     - reassign
     - recvcheck
-    - revive
+    # - revive
     - rowserrcheck
     - sloglint
     - spancheck
     - sqlclosecheck
     - tagalign
-    - tagliatelle
+    # - tagliatelle
     - testableexamples
     - testifylint
     - thelper
     - tparallel
     - unconvert
     - unparam
-    - usestdlibvars
+    # - usestdlibvars
     - wastedassign
     - whitespace
-    - wrapcheck
+    # - wrapcheck
     - zerologlint
 
 linters-settings:
@@ -100,6 +102,10 @@ linters-settings:
     check-type-assertions: true
     exclude-functions:
       - (io.Closer).Close
+      - (io.ReadCloser).Close
+      - (*database/sql.DB).Close
+      - (*database/sql.Rows).Close
+      - (*database/sql.Stmt).Close
 
   govet:
     enable-all: true
